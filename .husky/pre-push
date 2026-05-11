@@ -1,0 +1,39 @@
+export PATH="/opt/homebrew/bin:$PATH"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+echo "Running checks in parallel..."
+
+pnpm run type-check > "$tmpdir/tc.log" 2>&1 &
+pid_tc=$!
+pnpm test > "$tmpdir/test.log" 2>&1 &
+pid_test=$!
+
+failed=0
+
+if ! wait $pid_tc; then
+  echo "Type-check failed:"
+  cat "$tmpdir/tc.log"
+  failed=1
+else
+  echo "  type-check ok"
+fi
+
+if ! wait $pid_test; then
+  echo "Tests failed:"
+  cat "$tmpdir/test.log"
+  failed=1
+else
+  echo "  tests ok"
+fi
+
+if [ $failed -eq 1 ]; then
+  exit 1
+fi
+
+echo "Running build..."
+pnpm run build > "$tmpdir/build.log" 2>&1 || { echo "Build failed:"; cat "$tmpdir/build.log"; exit 1; }
+echo "  build ok"
+
+echo "All checks passed!"
