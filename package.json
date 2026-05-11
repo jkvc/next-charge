@@ -1,0 +1,66 @@
+{
+  "name": "next-charge",
+  "version": "0.1.0",
+  "description": "Token-bucket charge system for Next.js API routes, backed by Redis",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js",
+      "require": "./dist/client/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "type-check": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "nextjs",
+    "rate-limit",
+    "token-bucket",
+    "redis",
+    "api",
+    "charge",
+    "cost-control"
+  ],
+  "author": "jkvc",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jkvc/next-charge"
+  },
+  "peerDependencies": {
+    "next": ">=14",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": false
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "25.6.2",
+    "@types/react": "^19.2.14",
+    "tsup": "8.5.1",
+    "typescript": "5.8.3",
+    "vitest": "4.1.5"
+  },
+  "packageManager": "pnpm@10.28.0"
+}
