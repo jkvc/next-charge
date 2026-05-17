@@ -62,17 +62,25 @@ export interface ChargeSystemConfig {
   devBypass?: boolean;
 }
 
-export interface ChargeSystem {
+/** Core engine — framework-agnostic, works anywhere with Redis. */
+export interface ChargeEngine {
   consumeCharge: (poolId: string) => Promise<ConsumeResult>;
   getChargeState: (poolId: string) => Promise<ChargeState>;
   getAllChargeStates: () => Promise<ChargeState[]>;
   topOff: (poolId: string) => Promise<void>;
   checkCharges: (poolIds: string[]) => Promise<CheckResult>;
+  pools: ChargePoolConfig[];
+}
+
+/** Web Request/Response route handler adapters (work with Next.js, Hono, Bun, Deno, etc.). */
+export interface ChargeHandlers {
   withCharge: (
     poolId: string,
     handler: (req: Request) => Promise<Response>,
   ) => (req: Request) => Promise<Response>;
   chargeStatusHandler: () => (req: Request) => Promise<Response>;
   checkHandler: () => (req: Request) => Promise<Response>;
-  pools: ChargePoolConfig[];
 }
+
+/** Full system returned by createChargeSystem — engine + route handler adapters. */
+export interface ChargeSystem extends ChargeEngine, ChargeHandlers {}

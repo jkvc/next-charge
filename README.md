@@ -1,6 +1,6 @@
 # next-charge
 
-Token-bucket charge system for Next.js API routes backed by Redis. Prevents unbounded spend from public demos.
+Token-bucket charge system for API routes backed by Redis. Prevents unbounded spend from public-facing endpoints. Works with any framework that has a Redis client — Next.js, Hono, Express, Bun, Deno, SvelteKit, etc.
 
 ## Install
 
@@ -19,15 +19,7 @@ Token-bucket charge system for Next.js API routes backed by Redis. Prevents unbo
       token: process.env.UPSTASH_REDIS_REST_TOKEN!,
     });
 
-    export const {
-      withCharge,
-      getChargeState,
-      getAllChargeStates,
-      topOff,
-      checkCharges,
-      chargeStatusHandler,
-      checkHandler,
-    } = createChargeSystem({
+    export const charge = createChargeSystem({
       redis,
       pools: [
         { id: "generate-image", maxCharges: 5, rechargeIntervalHours: 2 },
@@ -35,15 +27,46 @@ Token-bucket charge system for Next.js API routes backed by Redis. Prevents unbo
       ],
     });
 
-### Wrap your API routes
+### Use the engine directly
 
-    // app/api/generate/route.ts
-    import { withCharge } from "@/lib/charge";
+`consumeCharge` is the core primitive — call it from any context (route handler, queue worker, cron job, CLI):
 
-    export const POST = withCharge("generate-image", async (req: Request) => {
+    const result = await charge.consumeCharge("generate-image");
+
+    if (!result.ok) {
+      // result.retryAfterMs tells you when the next charge arrives
+      throw new Error(`Rate limited, retry in ${result.retryAfterMs}ms`);
+    }
+
+    // proceed with expensive operation
+
+Other engine methods:
+
+    await charge.getChargeState("generate-image");   // read one pool
+    await charge.getAllChargeStates();                 // read all pools
+    await charge.checkCharges(["generate-image"]);    // quick availability check
+    await charge.topOff("generate-image");             // admin: reset to full
+
+### Route handler adapter (optional)
+
+For frameworks using the standard Web `Request`/`Response` API (Next.js App Router, Hono, Bun.serve, Deno, etc.), `withCharge` wraps a handler to consume a charge before it runs:
+
+    // Next.js App Router
+    import { charge } from "@/lib/charge";
+
+    export const POST = charge.withCharge("generate-image", async (req: Request) => {
       const body = await req.json();
       // ... your handler logic
       return Response.json({ success: true });
+    });
+
+    // Hono
+    app.post("/api/generate", async (c) => {
+      const handler = charge.withCharge("generate-image", async (req) => {
+        // ... your handler logic
+        return Response.json({ success: true });
+      });
+      return handler(c.req.raw);
     });
 
 When charges are depleted, the wrapper returns a 429 response:
@@ -58,27 +81,29 @@ A `Retry-After` header (in seconds) is also set.
 
 If Redis is unreachable, the wrapper returns a 503 with `{ "error": "service_unavailable" }` (fail-closed).
 
-### Add status endpoints (optional)
+For Express or other non-standard-Request frameworks, call `consumeCharge` directly in your middleware.
 
-    // app/api/usage/route.ts
-    import { chargeStatusHandler } from "@/lib/charge";
+### Status endpoints (optional)
 
-    export const GET = chargeStatusHandler();
+Pre-built handlers for status and availability checks:
 
-    // app/api/usage/check/route.ts
-    import { checkHandler } from "@/lib/charge";
+    // GET /api/usage — returns all pool states
+    export const GET = charge.chargeStatusHandler();
 
-    export const GET = checkHandler();
+    // GET /api/usage/check?pools=generate-image,describe-image — quick check
+    export const GET = charge.checkHandler();
 
-`GET /api/usage` returns all pool states. `GET /api/usage/check?pools=generate-image,describe-image` returns a quick availability check:
+`GET /api/usage/check?pools=generate-image,describe-image` returns:
 
     { "ok": true, "pools": [{ "id": "generate-image", "available": true }, ...] }
 
-## Client-side hook
+## Client-side fetch wrapper
 
-    import { useChargeFetch } from "next-charge/client";
+### Framework-agnostic (any JS environment)
 
-    const chargeFetch = useChargeFetch({
+    import { createChargeFetch } from "next-charge/fetch";
+
+    const chargeFetch = createChargeFetch({
       onOutOfCharge: (body, retryStr) => {
         alert(`Out of charges for ${body.poolId}. Recharges in ${retryStr}.`);
       },
@@ -86,7 +111,21 @@ If Redis is unreachable, the wrapper returns a 503 with `{ "error": "service_una
 
     const res = await chargeFetch("/api/generate", { method: "POST", body: JSON.stringify(data) });
 
-`useChargeFetch` wraps `fetch()` and intercepts 429 responses with `error: "out_of_charge"`. It calls your `onOutOfCharge` callback with the parsed body and a human-readable retry string (e.g. "45m", "2h 15m"). The original `Response` is still returned so you can handle other errors normally.
+`createChargeFetch` wraps `fetch()` and intercepts 429 responses with `error: "out_of_charge"`. It calls your `onOutOfCharge` callback with the parsed body and a human-readable retry string (e.g. "45m", "2h 15m"). The original `Response` is still returned so you can handle other errors normally.
+
+### React hook
+
+    import { useChargeFetch } from "next-charge/client";
+
+    const chargeFetch = useChargeFetch({
+      onOutOfCharge: (body, retryStr) => {
+        toast.error(`Out of charges. Recharges in ${retryStr}.`);
+      },
+    });
+
+    const res = await chargeFetch("/api/generate", { method: "POST", body: JSON.stringify(data) });
+
+Same behavior as `createChargeFetch`, wrapped in `useCallback` for stable identity across renders.
 
 ## Configuration
 

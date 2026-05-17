@@ -10,6 +10,14 @@ export default defineConfig([
     external: ["next", "react"],
   },
   {
+    entry: { fetch: "src/fetch.ts" },
+    format: ["cjs", "esm"],
+    dts: true,
+    outDir: "dist",
+    clean: false,
+    external: [],
+  },
+  {
     entry: { "client/index": "src/client/index.ts" },
     format: ["cjs", "esm"],
     dts: true,

@@ -22,11 +22,14 @@ export function createChargeSystem(config: ChargeSystemConfig): ChargeSystem {
 }
 
 export { computeRecharge } from "./engine";
+export { createChargeFetch, formatRetryTime } from "./fetch";
 
 export type {
   ChargeRedis,
   ChargePoolConfig,
   ChargeState,
+  ChargeEngine,
+  ChargeHandlers,
   ChargeSystem,
   ChargeSystemConfig,
   ConsumeResult,
@@ -34,3 +37,5 @@ export type {
   StoredCharge,
   RechargeResult,
 } from "./types";
+
+export type { ChargeFetchOptions, ChargeFetchFn } from "./fetch";
